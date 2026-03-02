@@ -2,5 +2,6 @@ venv/
 data/cache/
 data/*.csv
 data/*.png
+data/*.html
 __pycache__/
 .DS_Store
