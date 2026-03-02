@@ -1,10 +1,11 @@
+from scipy.interpolate import CubicSpline
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 
 LIGHTS_OUT = pd.Timestamp('2024-05-26 13:03:11', tz='UTC')
-# Interpolate to every 0.2 seconds for silky smooth animation
-INTERP_RATE = 0.2
+INTERP_RATE = 0.05
+MAX_SECONDS = 600
 
 print("Loading position data...")
 df = pd.read_csv('data/monaco_2024_positions.csv')
@@ -21,35 +22,33 @@ for driver in df['acronym'].unique():
     cleaned.append(d)
 df = pd.concat(cleaned, ignore_index=True)
 
-print("Interpolating positions for smooth animation...")
-
-# Only animate first 600 seconds (10 mins) to keep file size manageable
-# Change this to see more of the race
-MAX_SECONDS = 600
-
-# ONE shared time axis for ALL drivers so every frame has every driver
+print("Interpolating with cubic spline...")
 t_common = np.arange(0, MAX_SECONDS + INTERP_RATE, INTERP_RATE)
 n_frames = len(t_common)
 
 interpolated = []
-
 for driver in df['acronym'].unique():
     d = df[df['acronym'] == driver].copy().sort_values('seconds')
+    
+    if len(d) < 4:
+        continue
 
     d_tmin = d['seconds'].min()
     d_tmax = d['seconds'].max()
 
-    # Interpolate x and y onto the shared time axis
-    x_interp = np.interp(t_common, d['seconds'].values, d['x'].values)
-    y_interp = np.interp(t_common, d['seconds'].values, d['y'].values)
+    # Cubic spline for smooth curves through corners
+    cs_x = CubicSpline(d['seconds'].values, d['x'].values)
+    cs_y = CubicSpline(d['seconds'].values, d['y'].values)
 
-    # NaN outside the driver's actual data range to avoid stale extrapolation
-    outside = (t_common < d_tmin) | (t_common > d_tmax)
-    x_interp[outside] = np.nan
-    y_interp[outside] = np.nan
+    x_interp = np.full(len(t_common), np.nan)
+    y_interp = np.full(len(t_common), np.nan)
+
+    mask = (t_common >= d_tmin) & (t_common <= d_tmax)
+    x_interp[mask] = cs_x(t_common[mask])
+    y_interp[mask] = cs_y(t_common[mask])
 
     interp_df = pd.DataFrame({
-        'frame_idx': np.arange(n_frames),  # integer index — no float comparison
+        'frame_idx': np.arange(n_frames),
         'seconds': t_common,
         'x': x_interp,
         'y': y_interp,
@@ -63,21 +62,16 @@ for driver in df['acronym'].unique():
 smooth_df = pd.concat(interpolated, ignore_index=True)
 print(f"Smooth data points: {len(smooth_df):,}")
 
-# Frame index list (integers) — avoids any float == comparison issues
 frame_indices = list(range(n_frames))
-# Keep a seconds lookup for the slider labels
 idx_to_seconds = dict(enumerate(t_common))
 print(f"Total animation frames: {n_frames}")
 
-# Build track outline from VER
 track = df[df['acronym'] == 'VER'][['x', 'y']].iloc[::3]
 
 print("Building animation frames...")
 frames = []
 for i in frame_indices:
-    frame_data = smooth_df[smooth_df['frame_idx'] == i]
-    # Drop NaN rows (drivers outside their data range) so they vanish cleanly
-    frame_data = frame_data.dropna(subset=['x', 'y'])
+    frame_data = smooth_df[smooth_df['frame_idx'] == i].dropna(subset=['x', 'y'])
     
     frames.append(go.Frame(
         data=[
@@ -107,7 +101,6 @@ for i in frame_indices:
         name=str(i)
     ))
 
-# Build slider - show every 30 seconds on slider
 steps = []
 for i in frame_indices:
     t = idx_to_seconds[i]
@@ -126,8 +119,7 @@ for i in frame_indices:
         method='animate'
     ))
 
-# Initial frame
-first = smooth_df[(smooth_df['frame_idx'] == 0)].dropna(subset=['x', 'y'])
+first = smooth_df[smooth_df['frame_idx'] == 0].dropna(subset=['x', 'y'])
 
 fig = go.Figure(
     data=[
@@ -163,8 +155,8 @@ fig.update_layout(
     ),
     paper_bgcolor='#1a1a1a',
     plot_bgcolor='#1a1a1a',
-    xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-    yaxis=dict(showgrid=False, zeroline=False, showticklabels=False, scaleanchor='x'),
+    xaxis=dict(showgrid=False, zeroline=False, showticklabels=False, fixedrange=True, range=[-9000, 4000]),
+    yaxis=dict(showgrid=False, zeroline=False, showticklabels=False, fixedrange=True, scaleanchor='x', range=[-11000, 2000]),
     updatemenus=[dict(
         type='buttons',
         showactive=False,
@@ -193,7 +185,16 @@ fig.update_layout(
                 label='⏩ Fast',
                 method='animate',
                 args=[None, dict(
-                    frame=dict(duration=50, redraw=True),
+                    frame=dict(duration=16, redraw=True),
+                    fromcurrent=True,
+                    mode='immediate'
+                )]
+            ),
+            dict(
+                label='⏩⏩ Turbo',
+                method='animate',
+                args=[None, dict(
+                    frame=dict(duration=5, redraw=True),
                     fromcurrent=True,
                     mode='immediate'
                 )]
@@ -219,4 +220,3 @@ fig.update_layout(
 print("Saving replay...")
 fig.write_html('data/monaco_replay.html')
 print("\n✅ Done! Open data/monaco_replay.html in your browser!")
-print("Cars should now glide smoothly around the track!")

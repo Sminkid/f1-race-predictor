@@ -1,7 +1,23 @@
+# Virtual Environment
 venv/
+
+# Data files (too large for GitHub)
 data/cache/
 data/*.csv
-data/*.png
 data/*.html
+data/*.png
+
+# Python
 __pycache__/
+*.pyc
+*.pyo
+
+# Mac specific
 .DS_Store
+
+# Windows specific
+Thumbs.db
+desktop.ini
+
+# VS Code
+.vscode/
