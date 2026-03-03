@@ -37,6 +37,20 @@ PIT_STOPS = [
 ]
 pit_df = pd.DataFrame(PIT_STOPS)
 
+# ── Load Track Status Data ────────────────────────────────────────────────────
+track_status_df = pd.read_csv('data/monaco_2024_track_status.csv')
+
+FLAG_STYLES = {
+    'GREEN':                {'bg': '#003300', 'color': '#00ee00', 'icon': '🟢'},
+    'CLEAR':                {'bg': '#003300', 'color': '#00ee00', 'icon': '🟢'},
+    'CHEQUERED':            {'bg': '#333333', 'color': '#ffffff', 'icon': '🏁'},
+    'RED':                  {'bg': '#330000', 'color': '#ff3333', 'icon': '🔴'},
+    'YELLOW':               {'bg': '#332200', 'color': '#ffcc00', 'icon': '🟡'},
+    'DOUBLE YELLOW':        {'bg': '#332200', 'color': '#ffaa00', 'icon': '🟡'},
+    'SAFETY CAR':           {'bg': '#332200', 'color': '#ffcc00', 'icon': '🚗'},
+    'VIRTUAL SAFETY CAR':   {'bg': '#332d00', 'color': '#ffaa00', 'icon': '🚗'},
+}
+
 # ── Load & Process Data ────────────────────────────────────────────────────────
 print("Loading position data...")
 df = pd.read_csv('data/monaco_2024_positions.csv')
@@ -256,6 +270,10 @@ app.layout = html.Div(
                                 style={'color': 'white'}),
                         html.Div(id='pit-alerts',
                                  style={'color': 'orange', 'fontSize': '13px'}),
+                        html.H4("Track Status",
+                                style={'color': 'white', 'marginTop': '20px'}),
+                        html.Div(id='track-status',
+                                 style={'fontSize': '13px'}),
                     ]
                 )
             ]
@@ -344,6 +362,7 @@ def handle_controls(play, pause, fast, reset, store):
     Output('track-map', 'figure'),
     Output('race-timer', 'children'),
     Output('pit-alerts', 'children'),
+    Output('track-status', 'children'),
     Output('frame-store', 'data', allow_duplicate=True),
     Input('interval', 'n_intervals'),
     State('frame-store', 'data'),
@@ -388,7 +407,46 @@ def tick(n, store):
     else:
         alerts = html.Div("No active pit stops", style={'color': '#666'})
 
-    return patched_fig, timer, alerts, store
+    # ── Track status ──────────────────────────────────────────────────────────
+    past_events = track_status_df[track_status_df['seconds'] <= current_time]
+    if len(past_events) > 0:
+        current_flag = past_events.iloc[-1]['flag']
+        style = FLAG_STYLES.get(current_flag, {'bg': '#222', 'color': '#fff', 'icon': '❓'})
+
+        # Current status badge
+        badge = html.Div(
+            f"{style['icon']} {current_flag}",
+            style={
+                'backgroundColor': style['bg'],
+                'color': style['color'],
+                'fontWeight': 'bold',
+                'fontSize': '16px',
+                'padding': '8px 12px',
+                'borderRadius': '6px',
+                'marginBottom': '10px',
+                'border': f"1px solid {style['color']}",
+                'textAlign': 'center',
+            }
+        )
+
+        # History list (most recent first, last 8 events)
+        history = [
+            html.Div(
+                f"Lap {int(row['lap_number'])}  {FLAG_STYLES.get(row['flag'], {'icon': '❓'})['icon']}  {row['flag']}",
+                style={
+                    'color': FLAG_STYLES.get(row['flag'], {'color': '#aaa'})['color'],
+                    'fontSize': '12px',
+                    'padding': '3px 0',
+                    'borderBottom': '1px solid #333',
+                }
+            )
+            for _, row in past_events.tail(8).iloc[::-1].iterrows()
+        ]
+        track_status = [badge] + history
+    else:
+        track_status = html.Div("No events yet", style={'color': '#666'})
+
+    return patched_fig, timer, alerts, track_status, store
 
 
 # ── Run ────────────────────────────────────────────────────────────────────────
