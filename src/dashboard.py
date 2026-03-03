@@ -11,7 +11,7 @@ import time
 print("Script started")
 LIGHTS_OUT = pd.Timestamp('2024-05-26 13:03:11', tz='UTC')
 INTERP_RATE = 0.1
-MAX_SECONDS = 3900
+MAX_SECONDS = 8800  # full Monaco 2024 race (~145 min)
 
 TEAM_COLOURS = {
     'Red Bull Racing': '#3671C6',
@@ -219,7 +219,7 @@ initial_fig.update_layout(
 print("Initial figure built.")
 
 # ── App Layout ─────────────────────────────────────────────────────────────────
-app = dash.Dash(__name__)
+app = dash.Dash(__name__, suppress_callback_exceptions=True)
 
 app.layout = html.Div(
     style={'backgroundColor': '#1a1a1a', 'height': '100vh', 'fontFamily': 'Arial'},
@@ -306,6 +306,32 @@ app.layout = html.Div(
             ]
         ),
 
+        # Scrubber slider
+        html.Div(
+            style={'padding': '0 30px 10px 30px'},
+            children=[
+                dcc.Slider(
+                    id='time-slider',
+                    min=0,
+                    max=MAX_SECONDS,
+                    step=1,
+                    value=0,
+                    marks={
+                        int(s): {
+                            'label': f"{int(s)//3600:01d}:{(int(s)%3600)//60:02d}",
+                            'style': {'color': '#aaa', 'fontSize': '11px'}
+                        }
+                        for s in range(0, MAX_SECONDS + 1, 900)  # mark every 15 mins
+                    },
+                    tooltip={'placement': 'bottom', 'always_visible': False},
+                    updatemode='mouseup',
+                    included=True,
+                    className='race-slider',
+                    disabled=False,
+                )
+            ]
+        ),
+
         # Hidden state storage
         dcc.Store(id='frame-store', data={
             'frame': 0, 'playing': False, 'speed': 1,
@@ -364,6 +390,7 @@ def handle_controls(play, pause, fast, reset, store):
     Output('pit-alerts', 'children'),
     Output('track-status', 'children'),
     Output('frame-store', 'data', allow_duplicate=True),
+    Output('time-slider', 'value', allow_duplicate=True),
     Input('interval', 'n_intervals'),
     State('frame-store', 'data'),
     prevent_initial_call=True
@@ -446,7 +473,24 @@ def tick(n, store):
     else:
         track_status = html.Div("No events yet", style={'color': '#666'})
 
-    return patched_fig, timer, alerts, track_status, store
+    return patched_fig, timer, alerts, track_status, store, current_time
+
+
+@app.callback(
+    Output('frame-store', 'data', allow_duplicate=True),
+    Input('time-slider', 'value'),
+    State('frame-store', 'data'),
+    prevent_initial_call=True
+)
+def handle_scrub(slider_val, store):
+    """Jump to slider position; resets clock so playback continues correctly."""
+    if slider_val is None:
+        return store
+    target_frame = min(int(slider_val / INTERP_RATE), len(t_common) - 1)
+    store['frame'] = target_frame
+    store['start_frame'] = target_frame
+    store['start_time'] = time.time()
+    return store
 
 
 # ── Run ────────────────────────────────────────────────────────────────────────
