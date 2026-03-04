@@ -20,4 +20,4 @@ Thumbs.db
 desktop.ini
 
 # VS Code
-.vscode/
+.vscode/.DS_Store
