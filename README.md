@@ -1,4 +1,4 @@
-# 🏎️ F1 Monaco GP 2024 — Live Race Replay
+# 🏎️ F1 Monaco GP 2024 — Live Race Replay Version 1.0
 
 An interactive real-time replay of the 2024 Monaco Grand Prix, built with Python, Dash, and Plotly. Watch all 20 drivers navigate the iconic streets of Monte Carlo with live GPS telemetry data.
 
