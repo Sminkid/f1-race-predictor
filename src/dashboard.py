@@ -510,9 +510,8 @@ def tick(n, store):
 # ── Run ────────────────────────────────────────────────────────────────────────
 if __name__ == '__main__':
     try:
-        app.run(debug=True, use_reloader=False)
+        app.run(debug=False, host='0.0.0.0', port=8050, use_reloader=False)
     except Exception as e:
         print(f"Error starting app: {e}")
         import traceback
         traceback.print_exc()
-        input("Press Enter to exit...")
