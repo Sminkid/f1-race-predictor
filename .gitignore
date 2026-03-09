@@ -21,3 +21,13 @@ desktop.ini
 
 # VS Code
 .vscode/.DS_Store
+
+# Environment variables (secrets)
+.env
+
+# FastF1 cache (can get huge)
+fastf1_cache/
+
+# Any leftover generated scripts in root
+generate_laps.py
+generate_track_status.py
