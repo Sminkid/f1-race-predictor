@@ -1,0 +1,8 @@
+venv/
+__pycache__/
+.git/
+data/
+.DS_Store
+.vscode/
+.env
+fastf1_cache/
